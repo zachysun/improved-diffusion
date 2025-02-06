@@ -27,6 +27,7 @@ def main():
         **args_to_dict(args, model_and_diffusion_defaults().keys())
     )
     model.to(dist_util.dev())
+    # Create a schedule sampler
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
     logger.log("creating data loader...")
@@ -58,6 +59,8 @@ def main():
 
 
 def create_argparser():
+    """ Generate argument parser """
+    # Default parameters
     defaults = dict(
         data_dir="",
         schedule_sampler="uniform",
@@ -73,8 +76,10 @@ def create_argparser():
         use_fp16=False,
         fp16_scale_growth=1e-3,
     )
+    # Merge parameters
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
+    # Easy to add arguments
     add_dict_to_argparser(parser, defaults)
     return parser
 
