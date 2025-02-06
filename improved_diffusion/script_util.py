@@ -32,6 +32,8 @@ def model_and_diffusion_defaults():
         rescale_learned_sigmas=True,
         use_checkpoint=False,
         use_scale_shift_norm=True,
+        in_channels=3,
+        out_channels=3,
     )
 
 
@@ -55,6 +57,8 @@ def create_model_and_diffusion(
     rescale_learned_sigmas,
     use_checkpoint,
     use_scale_shift_norm,
+    in_channels,
+    out_channels,
 ):
     model = create_model(
         image_size,
@@ -68,6 +72,8 @@ def create_model_and_diffusion(
         num_heads_upsample=num_heads_upsample,
         use_scale_shift_norm=use_scale_shift_norm,
         dropout=dropout,
+        in_channels=in_channels,
+        out_channels=out_channels,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,
@@ -95,9 +101,13 @@ def create_model(
     num_heads_upsample,
     use_scale_shift_norm,
     dropout,
+    in_channels,
+    out_channels,
 ):
     if image_size == 256:
         channel_mult = (1, 1, 2, 2, 4, 4)
+    elif image_size == 128:
+        channel_mult = (1, 1, 2, 3, 4)
     elif image_size == 64:
         channel_mult = (1, 2, 3, 4)
     elif image_size == 32:
@@ -110,9 +120,9 @@ def create_model(
         attention_ds.append(image_size // int(res))
 
     return UNetModel(
-        in_channels=3,
+        in_channels=in_channels,
         model_channels=num_channels,
-        out_channels=(3 if not learn_sigma else 6),
+        out_channels=(out_channels if not learn_sigma else 6),
         num_res_blocks=num_res_blocks,
         attention_resolutions=tuple(attention_ds),
         dropout=dropout,
@@ -239,7 +249,9 @@ def create_gaussian_diffusion(
     rescale_learned_sigmas=False,
     timestep_respacing="",
 ):
-    betas = gd.get_named_beta_schedule(noise_schedule, steps)
+    """Create a diffusion architecture"""
+    betas = gd.get_named_beta_schedule(noise_schedule, steps) # Get betas
+    # Define loss type
     if use_kl:
         loss_type = gd.LossType.RESCALED_KL
     elif rescale_learned_sigmas:
@@ -279,6 +291,7 @@ def add_dict_to_argparser(parser, default_dict):
 
 
 def args_to_dict(args, keys):
+    """ Convert arguments to a dictionary """
     return {k: getattr(args, k) for k in keys}
 
 
