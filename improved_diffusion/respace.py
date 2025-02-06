@@ -85,6 +85,7 @@ class SpacedDiffusion(GaussianDiffusion):
         kwargs["betas"] = np.array(new_betas)
         super().__init__(**kwargs)
 
+    # mean and variance from the model
     def p_mean_variance(
         self, model, *args, **kwargs
     ):  # pylint: disable=signature-differs
