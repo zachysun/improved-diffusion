@@ -138,19 +138,20 @@ class GaussianDiffusion:
         self.num_timesteps = int(betas.shape[0])
 
         alphas = 1.0 - betas
-        self.alphas_cumprod = np.cumprod(alphas, axis=0)
-        self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1])
-        self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0)
+        self.alphas_cumprod = np.cumprod(alphas, axis=0) # \bar alpha_t
+        self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1]) # \bar alpha_{t-1}
+        self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0) # \bar alpha_{t+1}
         assert self.alphas_cumprod_prev.shape == (self.num_timesteps,)
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.sqrt_alphas_cumprod = np.sqrt(self.alphas_cumprod)
-        self.sqrt_one_minus_alphas_cumprod = np.sqrt(1.0 - self.alphas_cumprod)
-        self.log_one_minus_alphas_cumprod = np.log(1.0 - self.alphas_cumprod)
-        self.sqrt_recip_alphas_cumprod = np.sqrt(1.0 / self.alphas_cumprod)
-        self.sqrt_recipm1_alphas_cumprod = np.sqrt(1.0 / self.alphas_cumprod - 1)
+        self.sqrt_alphas_cumprod = np.sqrt(self.alphas_cumprod) # \sqrt{\bar alpha_t}
+        self.sqrt_one_minus_alphas_cumprod = np.sqrt(1.0 - self.alphas_cumprod) # \sqrt{1 - \bar alpha_t}
+        self.log_one_minus_alphas_cumprod = np.log(1.0 - self.alphas_cumprod) # \log(1 - \bar alpha_t)
+        self.sqrt_recip_alphas_cumprod = np.sqrt(1.0 / self.alphas_cumprod) # \sqrt{1 / \bar alpha_t}
+        self.sqrt_recipm1_alphas_cumprod = np.sqrt(1.0 / self.alphas_cumprod - 1) # \sqrt{1 / \bar alpha_t - 1}
 
-        # calculations for posterior q(x_{t-1} | x_t, x_0)
+
+        # calculations for posterior q(x_{t-1} | x_t, x_0), variance
         self.posterior_variance = (
             betas * (1.0 - self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
         )
@@ -159,15 +160,19 @@ class GaussianDiffusion:
         self.posterior_log_variance_clipped = np.log(
             np.append(self.posterior_variance[1], self.posterior_variance[1:])
         )
+        # coefficient 1 for posterior q(x_{t-1} | x_t, x_0), mean
         self.posterior_mean_coef1 = (
             betas * np.sqrt(self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
         )
+        # coefficient 2 for posterior q(x_{t-1} | x_t, x_0), mean
         self.posterior_mean_coef2 = (
             (1.0 - self.alphas_cumprod_prev)
             * np.sqrt(alphas)
             / (1.0 - self.alphas_cumprod)
         )
-
+        
+    """Note: q: real distribution; p: model predicted distribution"""
+    
     def q_mean_variance(self, x_start, t):
         """
         Get the distribution q(x_t | x_0).
@@ -257,8 +262,9 @@ class GaussianDiffusion:
 
         B, C = x.shape[:2]
         assert t.shape == (B,)
-        model_output = model(x, self._scale_timesteps(t), **model_kwargs)
+        model_output = model(x, self._scale_timesteps(t), **model_kwargs) # x, t
 
+        # Learnable variance
         if self.model_var_type in [ModelVarType.LEARNED, ModelVarType.LEARNED_RANGE]:
             assert model_output.shape == (B, C * 2, *x.shape[2:])
             model_output, model_var_values = th.split(model_output, C, dim=1)
@@ -274,6 +280,7 @@ class GaussianDiffusion:
                 frac = (model_var_values + 1) / 2
                 model_log_variance = frac * max_log + (1 - frac) * min_log
                 model_variance = th.exp(model_log_variance)
+        # Fixed variance
         else:
             model_variance, model_log_variance = {
                 # for fixedlarge, we set the initial (log-)variance like so
@@ -639,6 +646,7 @@ class GaussianDiffusion:
                 yield out
                 img = out["sample"]
 
+    # For KL divergence
     def _vb_terms_bpd(
         self, model, x_start, x_t, t, clip_denoised=True, model_kwargs=None
     ):
