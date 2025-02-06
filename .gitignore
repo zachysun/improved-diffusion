@@ -1,3 +1,14 @@
 .DS_Store
 __pycache__/
 
+mydata
+data
+custom_data
+.idea
+.vscode
+input
+
+improved_diffusion.egg-info
+
+scripts_store.md
+
